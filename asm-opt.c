@@ -124,6 +124,11 @@ static bench_info empty[] = { { NULL, 0, NULL } };
 #if defined(__i386__) || defined(__amd64__)
 
 #include "x86-sse2.h"
+#ifdef __amd64__
+/* AVX2/AVX512 backends are 64-bit only (see x86-avx2.S / x86-avx512.S guards) */
+#include "x86-avx2.h"
+#include "x86-avx512.h"
+#endif
 
 static bench_info x86_sse2[] =
 {
@@ -153,6 +158,64 @@ static bench_info x86_sse2_fb[] =
     { "SSE2 2-pass copy (from framebuffer)", 1, aligned_block_copy_sse2 },
     { NULL, 0, NULL }
 };
+
+#ifdef __amd64__
+
+static bench_info x86_avx2[] =
+{
+    { "AVX2 copy", 0, aligned_block_copy_avx2 },
+    { "AVX2 nontemporal copy", 0, aligned_block_copy_nt_avx2 },
+    { "AVX2 copy prefetched (32 bytes step)", 0, aligned_block_copy_pf32_avx2 },
+    { "AVX2 copy prefetched (64 bytes step)", 0, aligned_block_copy_pf64_avx2 },
+    { "AVX2 nontemporal copy prefetched (32 bytes step)", 0, aligned_block_copy_nt_pf32_avx2 },
+    { "AVX2 nontemporal copy prefetched (64 bytes step)", 0, aligned_block_copy_nt_pf64_avx2 },
+    { "AVX2 2-pass copy", 1, aligned_block_copy_avx2 },
+    { "AVX2 2-pass copy prefetched (32 bytes step)", 1, aligned_block_copy_pf32_avx2 },
+    { "AVX2 2-pass copy prefetched (64 bytes step)", 1, aligned_block_copy_pf64_avx2 },
+    { "AVX2 2-pass nontemporal copy", 1, aligned_block_copy_nt_avx2 },
+    { "AVX2 fill", 0, aligned_block_fill_avx2 },
+    { "AVX2 nontemporal fill", 0, aligned_block_fill_nt_avx2 },
+    { NULL, 0, NULL }
+};
+
+static bench_info x86_avx512[] =
+{
+    { "AVX512 copy", 0, aligned_block_copy_avx512 },
+    { "AVX512 nontemporal copy", 0, aligned_block_copy_nt_avx512 },
+    { "AVX512 copy prefetched (32 bytes step)", 0, aligned_block_copy_pf32_avx512 },
+    { "AVX512 copy prefetched (64 bytes step)", 0, aligned_block_copy_pf64_avx512 },
+    { "AVX512 nontemporal copy prefetched (32 bytes step)", 0, aligned_block_copy_nt_pf32_avx512 },
+    { "AVX512 nontemporal copy prefetched (64 bytes step)", 0, aligned_block_copy_nt_pf64_avx512 },
+    { "AVX512 2-pass copy", 1, aligned_block_copy_avx512 },
+    { "AVX512 2-pass copy prefetched (32 bytes step)", 1, aligned_block_copy_pf32_avx512 },
+    { "AVX512 2-pass copy prefetched (64 bytes step)", 1, aligned_block_copy_pf64_avx512 },
+    { "AVX512 2-pass nontemporal copy", 1, aligned_block_copy_nt_avx512 },
+    { "AVX512 fill", 0, aligned_block_fill_avx512 },
+    { "AVX512 nontemporal fill", 0, aligned_block_fill_nt_avx512 },
+    { NULL, 0, NULL }
+};
+
+/* Concatenate several NULL-terminated benchmark lists into one freshly
+ * allocated NULL-terminated list, so a single run reports SSE2, AVX2 and
+ * AVX512 side by side. Falls back to the first list on allocation failure. */
+static bench_info *concat_benchmarks(bench_info **lists, int nlists)
+{
+    int i, j, total = 0, k = 0;
+    bench_info *out;
+    for (i = 0; i < nlists; i++)
+        for (j = 0; lists[i][j].f; j++)
+            total++;
+    out = (bench_info *)malloc((total + 1) * sizeof(bench_info));
+    if (!out)
+        return lists[0];
+    for (i = 0; i < nlists; i++)
+        for (j = 0; lists[i][j].f; j++)
+            out[k++] = lists[i][j];
+    memset(&out[k], 0, sizeof(bench_info));
+    return out;
+}
+
+#endif /* __amd64__ */
 
 static int check_sse2_support(void)
 {
@@ -189,10 +252,25 @@ static int check_sse2_support(void)
 
 bench_info *get_asm_benchmarks(void)
 {
-    if (check_sse2_support())
-        return x86_sse2;
-    else
+    if (!check_sse2_support())
         return empty;
+#ifdef __amd64__
+    /* Report SSE2, then AVX2, then AVX512 in one run, gated on the CPU's
+     * actual capabilities (read from /proc/cpuinfo flags). Older CPUs simply
+     * get the SSE2 list and never execute an unsupported instruction. */
+    {
+        bench_info *lists[3];
+        int nlists = 0;
+        lists[nlists++] = x86_sse2;
+        if (check_cpu_feature("avx2"))
+            lists[nlists++] = x86_avx2;
+        if (check_cpu_feature("avx512f"))
+            lists[nlists++] = x86_avx512;
+        if (nlists > 1)
+            return concat_benchmarks(lists, nlists);
+    }
+#endif
+    return x86_sse2;
 }
 
 bench_info *get_asm_framebuffer_benchmarks(void)

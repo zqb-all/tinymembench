@@ -20,3 +20,9 @@ Example of crosscompiling and running the benchmark on android device:
     $ CC=arm-linux-gnueabihf-gcc CFLAGS="-O2 -mcpu=cortex-a8 -static" make
     $ adb push tinymembench /data/local/tmp/tinymembench
     $ adb shell /data/local/tmp/tinymembench
+
+Example of crosscompiling for RISC-V with the Vector extension (RVV 1.0):
+    $ CC=riscv64-unknown-linux-gnu-gcc CFLAGS="-O2 -march=rv64gcv" make
+
+The RVV benchmarks are only compiled in when the target enables the vector
+extension (i.e. 'v' is present in -march).

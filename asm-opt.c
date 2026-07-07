@@ -417,6 +417,46 @@ bench_info *get_asm_framebuffer_benchmarks(void)
     return empty;
 }
 
+#elif defined(__riscv) && defined(__riscv_vector)
+#include "riscv-rvv.h"
+
+static bench_info riscv_rvv[] =
+{
+    /* Vector copy operations - different LMUL and unrolling */
+    { "RVV copy m8",                      0, aligned_block_copy_vle8_vse8_rvv },
+    { "RVV copy m4 x2",                   0, aligned_block_copy_vle8_vse8_x2_rvv },
+    { "RVV copy m2 x4",                   0, aligned_block_copy_vle8_vse8_x4_rvv },
+
+    /* Vector load operations - bandwidth tests */
+    { "RVV load m8",                      0, aligned_block_load_vle8_rvv },
+    { "RVV load m4 x2",                   0, aligned_block_load_vle8_x2_rvv },
+    { "RVV load m2 x4",                   0, aligned_block_load_vle8_x4_rvv },
+
+    /* Vector fill operations - write bandwidth tests */
+    { "RVV fill m8",                      0, aligned_block_fill_vse8_rvv },
+    { "RVV fill m4 x2",                   0, aligned_block_fill_vse8_x2_rvv },
+    { "RVV fill m2 x4",                   0, aligned_block_fill_vse8_x4_rvv },
+
+    { NULL, 0, NULL }
+};
+
+static bench_info riscv_rvv_fb[] =
+{
+    { "RVV copy (from framebuffer)",        0, aligned_block_copy_vle8_vse8_rvv },
+    { "RVV 2-pass copy (from framebuffer)", 1, aligned_block_copy_vle8_vse8_rvv },
+    { NULL, 0, NULL }
+};
+
+bench_info *get_asm_benchmarks(void)
+{
+    return riscv_rvv;
+}
+
+bench_info *get_asm_framebuffer_benchmarks(void)
+{
+    return riscv_rvv_fb;
+}
+
 #else
 
 bench_info *get_asm_benchmarks(void)
